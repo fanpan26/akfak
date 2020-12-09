@@ -1,6 +1,6 @@
 package com.fanpan26.akfak.common.security.auth;
 
-import com.fanpan26.akfak.common.exceptions.KafkaException;
+import com.fanpan26.akfak.common.KafkaException;
 import com.fanpan26.akfak.common.network.Authenticator;
 import com.fanpan26.akfak.common.network.TransportLayer;
 

@@ -1,8 +1,6 @@
 package com.fanpan26.akfak.network;
 
-import com.fanpan26.akfak.common.exceptions.KafkaException;
 import com.fanpan26.akfak.common.network.ChannelBuilders;
-import com.fanpan26.akfak.common.network.KafkaChannel;
 import com.fanpan26.akfak.common.network.LoginType;
 import com.fanpan26.akfak.common.network.Mode;
 import com.fanpan26.akfak.common.network.SecurityProtocol;

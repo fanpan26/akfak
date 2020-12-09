@@ -1,4 +1,4 @@
-package com.fanpan26.akfak.common.exceptions;
+package com.fanpan26.akfak.common;
 
 /**
  * @author fanyuepan

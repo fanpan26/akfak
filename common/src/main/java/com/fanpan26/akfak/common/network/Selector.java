@@ -1,6 +1,6 @@
 package com.fanpan26.akfak.common.network;
 
-import com.fanpan26.akfak.common.exceptions.KafkaException;
+import com.fanpan26.akfak.common.KafkaException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
