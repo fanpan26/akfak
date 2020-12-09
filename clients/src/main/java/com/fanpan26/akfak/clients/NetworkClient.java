@@ -1,15 +1,83 @@
 package com.fanpan26.akfak.clients;
 
 import com.fanpan26.akfak.common.Node;
+import com.fanpan26.akfak.common.network.Selectable;
 import com.fanpan26.akfak.common.protocol.ApiKeys;
+import com.fanpan26.akfak.common.protocol.types.Struct;
 import com.fanpan26.akfak.common.requests.RequestHeader;
+import com.fanpan26.akfak.common.utils.Time;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.List;
+import java.util.Random;
 
 /**
  * @author fanyuepan
  */
 public class NetworkClient implements KafkaClient {
+
+    private static final Logger logger = LoggerFactory.getLogger(NetworkClient.class);
+
+    private final Selectable selector;
+    private final MetadataUpdater metadataUpdater;
+    private final Random randOffset;
+    private final ClusterConnectionStates connectionStates;
+    private final InFlightRequests inFlightRequests;
+    private final int socketSendBuffer;
+    private final int socketReceiveBuffer;
+    private final String clientId;
+    private int correlation;
+    private final int requestTimeoutMs;
+    private final Time time;
+
+    public NetworkClient(Selectable selector,
+                         Metadata metadata,
+                         String clientId,
+                         int maxInFlightRequestsPerConnection,
+                         long reconnectBackoffMs,
+                         int socketSendBuffer,
+                         int socketReceiveBuffer,
+                         int requestTimeoutMs,
+                         Time time) {
+        this(metadata, selector, clientId, maxInFlightRequestsPerConnection,
+                reconnectBackoffMs, socketSendBuffer, socketReceiveBuffer, requestTimeoutMs, time);
+    }
+
+    public NetworkClient(Selectable selector,
+                         String clientId,
+                         int maxInFlightRequestsPerConnection,
+                         long reconnectBackoffMs,
+                         int socketSendBuffer,
+                         int socketReceiveBuffer,
+                         int requestTimeoutMs,
+                         Time time) {
+        this( null, selector, clientId, maxInFlightRequestsPerConnection, reconnectBackoffMs,
+                socketSendBuffer, socketReceiveBuffer, requestTimeoutMs, time);
+    }
+
+    private NetworkClient(Metadata metadata,
+                          Selectable selector,
+                          String clientId,
+                          int maxInFlightRequestsPerConnection,
+                          long reconnectBackoffMs,
+                          int socketSendBuffer,
+                          int socketReceiveBuffer,
+                          int requestTimeoutMs,
+                          Time time) {
+
+        this.metadataUpdater = new DefaultMetadataUpdater(metadata);
+        this.selector = selector;
+        this.clientId = clientId;
+        this.inFlightRequests = new InFlightRequests(maxInFlightRequestsPerConnection);
+        this.connectionStates = new ClusterConnectionStates(reconnectBackoffMs);
+        this.socketSendBuffer = socketSendBuffer;
+        this.socketReceiveBuffer = socketReceiveBuffer;
+        this.correlation = 0;
+        this.randOffset = new Random();
+        this.requestTimeoutMs = requestTimeoutMs;
+        this.time = time;
+    }
 
     @Override
     public boolean isReady(Node node, long now) {
@@ -74,5 +142,42 @@ public class NetworkClient implements KafkaClient {
     @Override
     public void wakeup() {
 
+    }
+
+    class DefaultMetadataUpdater implements MetadataUpdater{
+
+        public DefaultMetadataUpdater(Metadata metadata){
+
+        }
+
+        @Override
+        public List<Node> fetchNodes() {
+            return null;
+        }
+
+        @Override
+        public boolean isUpdateDue(long now) {
+            return false;
+        }
+
+        @Override
+        public long maybeUpdate(long now) {
+            return 0;
+        }
+
+        @Override
+        public boolean maybeHandleDisconnection(ClientRequest request) {
+            return false;
+        }
+
+        @Override
+        public boolean maybeHandleCompletedReceive(ClientRequest request, long now, Struct body) {
+            return false;
+        }
+
+        @Override
+        public void requestUpdate() {
+
+        }
     }
 }

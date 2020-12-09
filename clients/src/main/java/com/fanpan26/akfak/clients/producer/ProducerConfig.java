@@ -2,6 +2,7 @@ package com.fanpan26.akfak.clients.producer;
 
 import com.fanpan26.akfak.common.serialization.Serializer;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
 
@@ -17,5 +18,9 @@ public class ProducerConfig  {
     public static Properties addSerializerToConfig(Properties properties,
                                                    Serializer<?> keySerializer, Serializer<?> valueSerializer) {
        return properties;
+    }
+
+    public Map<String,?> values() {
+        return new HashMap<>();
     }
 }

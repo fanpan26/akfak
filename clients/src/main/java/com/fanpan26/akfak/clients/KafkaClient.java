@@ -4,12 +4,13 @@ import com.fanpan26.akfak.common.Node;
 import com.fanpan26.akfak.common.protocol.ApiKeys;
 import com.fanpan26.akfak.common.requests.RequestHeader;
 
+import java.io.Closeable;
 import java.util.List;
 
 /**
  * @author fanyuepan
  */
-public interface KafkaClient {
+public interface KafkaClient extends Closeable {
 
     boolean isReady(Node node, long now);
 

@@ -1,5 +1,6 @@
 package com.fanpan26.akfak.clients.producer;
 
+import com.fanpan26.akfak.clients.ClientUtils;
 import com.fanpan26.akfak.clients.Metadata;
 import com.fanpan26.akfak.clients.NetworkClient;
 import com.fanpan26.akfak.clients.producer.internals.DefaultPartitioner;
@@ -7,6 +8,8 @@ import com.fanpan26.akfak.clients.producer.internals.RecordAccumulator;
 import com.fanpan26.akfak.clients.producer.internals.Sender;
 import com.fanpan26.akfak.common.Cluster;
 import com.fanpan26.akfak.common.PartitionInfo;
+import com.fanpan26.akfak.common.network.ChannelBuilder;
+import com.fanpan26.akfak.common.network.Selector;
 import com.fanpan26.akfak.common.serialization.Serializer;
 import com.fanpan26.akfak.common.KafkaException;
 import com.fanpan26.akfak.common.record.CompressionType;
@@ -63,47 +66,68 @@ public class KafkaProducer implements Producer<String,String> {
         this(new ProducerConfig(properties),null,null);
     }
 
-    private KafkaProducer(ProducerConfig config,Serializer<String> keySerializer,Serializer<String> valueSerializer){
-            logger.info("Starting kafka producer");
+    private KafkaProducer(ProducerConfig config,Serializer<String> keySerializer,Serializer<String> valueSerializer) {
+        logger.info("Starting kafka producer");
 
-            try {
-                this.producerConfig = config;
-                this.time = new SystemTime();
+        try {
+            this.producerConfig = config;
+            this.time = new SystemTime();
 
-                this.clientId = "producer-" + PRODUCER_CLIENT_ID_SEQUENCE.incrementAndGet();
-                this.partitioner = new DefaultPartitioner();
-                //重试间隔5000ms
-                long retryBackoffMs = 5000;
-                long metadataExpireMs = 1200000;
-                this.metadata = new Metadata(retryBackoffMs, metadataExpireMs);
-                //最大发送消息大小 1M
-                this.maxRequestSize = 1024 * 1024;
-                //申请内存大小 32M
-                this.totalMemorySize = 32 * 1024 * 1024;
-                this.compressionType = CompressionType.NONE;
-                //阻塞等待时间 2000ms
-                this.maxBlockTimeMs = 2000;
-                //请求超时时间 1000ms
-                this.requestTimeoutMs = 1000;
-                //TODO init Accumulator
-                this.accumulator = null;
-                List<InetSocketAddress> addresses = new ArrayList<>();
-                addresses.add(new InetSocketAddress("127.0.0.1", 9092));
-                this.metadata.update(Cluster.bootstrap(addresses), time.milliseconds());
+            this.clientId = "producer-" + PRODUCER_CLIENT_ID_SEQUENCE.incrementAndGet();
+            this.partitioner = new DefaultPartitioner();
+            //重试间隔5000ms
+            long retryBackoffMs = 5000;
+            long metadataExpireMs = 1200000;
+            this.metadata = new Metadata(retryBackoffMs, metadataExpireMs);
+            //最大发送消息大小 1M
+            this.maxRequestSize = 1024 * 1024;
+            //申请内存大小 32M
+            this.totalMemorySize = 32 * 1024 * 1024;
+            this.compressionType = CompressionType.NONE;
+            //阻塞等待时间 2000ms
+            this.maxBlockTimeMs = 2000;
+            //请求超时时间 1000ms
+            this.requestTimeoutMs = 1000;
+            //TODO init Accumulator
+            this.accumulator = null;
+            List<InetSocketAddress> addresses = new ArrayList<>();
+            addresses.add(new InetSocketAddress("127.0.0.1", 9092));
+            this.metadata.update(Cluster.bootstrap(addresses), time.milliseconds());
 
-                NetworkClient client = new NetworkClient();
-                this.sender = new Sender();
+            long connectionMaxIdleMs = 20 * 60 * 1000;
+            int maxInFlightRequestsPerConnection = 5;
+            long reconnectBackoffMs = 1000;
+            int socketSendBuffer = 1024 * 1024;
+            int socketReceiveBuffer = 1024 * 1024;
+            ChannelBuilder channelBuilder = ClientUtils.createChannelBuilder(config.values());
+            Selector selector = new Selector(-1, connectionMaxIdleMs, channelBuilder);
 
-                String ioThreadName = "kafka-producer-network-thread" + " | " + clientId;
-                this.ioThread = new KafkaThread(ioThreadName, this.sender, true);
-                this.ioThread.start();
-                logger.info("Producer started");
-            }catch (Exception e) {
+            NetworkClient client = new NetworkClient(selector, metadata, clientId,
+                    maxInFlightRequestsPerConnection,
+                    reconnectBackoffMs,
+                    socketSendBuffer,
+                    socketReceiveBuffer,
+                    requestTimeoutMs,
+                    time);
 
-                close(0, TimeUnit.MILLISECONDS, true);
-                throw new KafkaException("Failed to construct kafka producer", e);
-            }
+            this.sender = new Sender(client, metadata,
+                    accumulator,
+                    false,
+                    maxRequestSize, (short) 0,
+                    1,
+                    time,
+                    clientId,
+                    requestTimeoutMs);
 
+            String ioThreadName = "kafka-producer-network-thread" + " | " + clientId;
+            this.ioThread = new KafkaThread(ioThreadName, this.sender, true);
+            this.ioThread.start();
+            logger.info("Producer started");
+        } catch (Exception e) {
+
+            close(0, TimeUnit.MILLISECONDS, true);
+            throw new KafkaException("Failed to construct kafka producer", e);
+        }
     }
 
     @Override

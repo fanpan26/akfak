@@ -10,7 +10,14 @@ import java.util.HashSet;
  */
 public class Metadata {
 
+    private Cluster cluster;
+
+    public Cluster fetch(){
+        return this.cluster;
+    }
+
     public Metadata(long refreshBackoffMs, long metadataExpireMs) {
+        this.cluster = Cluster.empty();
     }
 
     public synchronized void update(Cluster cluster, long now) {
