@@ -17,7 +17,6 @@ public class Kafka {
             starter.start();
             starter.awaitShutdown();
         } catch (Exception e) {
-            e.printStackTrace();
             System.exit(1);
         }
         System.exit(0);

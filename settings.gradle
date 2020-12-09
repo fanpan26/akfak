@@ -1,4 +1,5 @@
 rootProject.name = 'akfak'
 include 'server'
 include 'common'
+include 'clients'
 
