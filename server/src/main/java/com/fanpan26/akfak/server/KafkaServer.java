@@ -52,6 +52,7 @@ public class KafkaServer {
             shutdownLatch = new CountDownLatch(1);
             startupComplete.set(true);
             isStartingUp.set(false);
+            logger.info("Kafka Server started");
         }
     }
 

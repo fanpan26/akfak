@@ -4,6 +4,9 @@ import com.fanpan26.akfak.common.KafkaException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.Closeable;
+import java.io.IOException;
+
 /**
  * @author fanyuepan
  */
@@ -87,6 +90,25 @@ public final class Utils {
         h ^= h >>> 15;
 
         return h;
+    }
+
+    public static void closeAll(Closeable... closeables) throws IOException {
+        IOException exception = null;
+        for (Closeable closeable : closeables) {
+            try {
+                closeable.close();
+            } catch (IOException e) {
+                if (exception != null) {
+                    exception.addSuppressed(e);
+                }
+                else {
+                    exception = e;
+                }
+            }
+        }
+        if (exception != null) {
+            throw exception;
+        }
     }
 
 }

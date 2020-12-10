@@ -9,6 +9,8 @@ import com.fanpan26.akfak.common.utils.Time;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.util.List;
 import java.util.Random;
 
@@ -81,17 +83,59 @@ public class NetworkClient implements KafkaClient {
 
     @Override
     public boolean isReady(Node node, long now) {
-        return false;
+        //当前不在元数据加载过程，并且不需要进入更新元数据状态，并且可以发送请求
+        return !metadataUpdater.isUpdateDue(now) && canSendRequest(node.idString());
+    }
+
+    private boolean canSendRequest(String node){
+        //节点状态是已连接
+        return connectionStates.isConnected(node) &&
+                //selector状态是ready
+                selector.isChannelReady(node) &&
+                //可以发送更多的消息，此值取决于 maxRequestInFlight
+                inFlightRequests.canSendMore(node);
     }
 
     @Override
     public boolean ready(Node node, long now) {
+        if (node.isEmpty()) {
+            throw new IllegalArgumentException("Cannot connect to empty node " + node);
+        }
+        if (isReady(node,now)){
+            return true;
+        }
+        //达到可以连接的条件
+        if (connectionStates.canConnect(node.idString(),now)){
+            //则尝试连接一下，等待下一次发送消息
+            initiateConnect(node, now);
+        }
         return false;
+    }
+
+    /**
+     * Node就是在这段代码中连接的
+     * */
+    private void initiateConnect(Node node,long now) {
+        String nodeConnectionId = node.idString();
+        try {
+
+            this.connectionStates.connecting(nodeConnectionId, now);
+            //连接Broker
+            selector.connect(nodeConnectionId,
+                    new InetSocketAddress(node.host(), node.port()),
+                    this.socketSendBuffer,
+                    this.socketReceiveBuffer);
+
+        } catch (IOException e) {
+            connectionStates.disconnected(nodeConnectionId, now);
+            //可能是元数据的问题，所以要更新一下元数据
+            metadataUpdater.requestUpdate();
+        }
     }
 
     @Override
     public long connectionDelay(Node node, long now) {
-        return 0;
+        return connectionStates.connectionDelay(node.idString(), now);
     }
 
     @Override
@@ -99,11 +143,13 @@ public class NetworkClient implements KafkaClient {
         return false;
     }
 
+    //TODO send
     @Override
     public void send(ClientRequest request, long now) {
 
     }
 
+    //TODO poll
     @Override
     public List<ClientResponse> poll(long timeout, long now) {
         return null;
@@ -144,10 +190,19 @@ public class NetworkClient implements KafkaClient {
 
     }
 
+    @Override
+    public void close() throws IOException {
+
+    }
+
     class DefaultMetadataUpdater implements MetadataUpdater{
 
-        public DefaultMetadataUpdater(Metadata metadata){
+        private final Metadata metadata;
+        private boolean metadataFetchInProgress;
 
+        public DefaultMetadataUpdater(Metadata metadata){
+            this.metadata = metadata;
+            metadataFetchInProgress = false;
         }
 
         @Override
@@ -155,9 +210,12 @@ public class NetworkClient implements KafkaClient {
             return null;
         }
 
+        /**
+         * 是否马上进入更新状态
+         * */
         @Override
         public boolean isUpdateDue(long now) {
-            return false;
+            return !this.metadataFetchInProgress && this.metadata.timeToNextUpdate(now) == 0;
         }
 
         @Override

@@ -60,7 +60,6 @@ public class Processor extends AbstractServerThread {
         //等待acceptor启动完毕
         startupComplete();
         while (isRunning()) {
-            logger.info("waiting for new connections");
             try {
                 // 初始化所有的连接，注册OP_READ事件，准备读数据
                 configureNewConnections();
