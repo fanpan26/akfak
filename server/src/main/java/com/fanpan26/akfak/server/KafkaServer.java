@@ -1,5 +1,6 @@
 package com.fanpan26.akfak.server;
 
+import com.fanpan26.akfak.network.RequestChannel;
 import com.fanpan26.akfak.network.SocketServer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,6 +16,8 @@ public class KafkaServer {
     private static final Logger logger = LoggerFactory.getLogger(KafkaServer.class);
 
     private KafkaConfig config;
+    private KafkaApis apis;
+    private KafkaRequestHandler.KafkaRequestHandlerPool requestHandlerPool;
 
     private BrokerState brokerState = BrokerState.NOT_RUNNING;
 
@@ -47,7 +50,14 @@ public class KafkaServer {
             config.setBrokerId(newBrokerId());
             socketServer.start();
 
-            //TODO other things
+            RequestChannel requestChannel = socketServer.getRequestChannel();
+            apis = new KafkaApis(requestChannel);
+            int handlerNumThreads = 3;
+            requestHandlerPool = new KafkaRequestHandler.KafkaRequestHandlerPool(config.getBrokerId(),
+                    requestChannel,
+                    apis,
+                    handlerNumThreads);
+
             brokerState = BrokerState.RUNNING_AS_BROKER;
             shutdownLatch = new CountDownLatch(1);
             startupComplete.set(true);

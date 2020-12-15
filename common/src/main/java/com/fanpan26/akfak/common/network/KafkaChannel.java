@@ -123,4 +123,23 @@ public class KafkaChannel {
         return send.completed();
     }
 
+    public boolean isConnected(){
+        return transportLayer.isConnected();
+    }
+
+    public NetworkReceive read() throws IOException{
+        NetworkReceive result = null;
+        if (receive == null){
+            receive = new NetworkReceive(maxReceiveSize,id);
+        }
+        //读取信息
+        receive(receive);
+        //如果已经读完了，可以直接返回一个完整的NetworkReceive，否则等待下一次继续读取数据
+        if (receive.complete()){
+            receive.payload().rewind();
+            result = receive;
+            receive = null;
+        }
+        return result;
+    }
 }

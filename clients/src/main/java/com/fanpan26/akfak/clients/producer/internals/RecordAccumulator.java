@@ -1,13 +1,20 @@
 package com.fanpan26.akfak.clients.producer.internals;
 
+import com.fanpan26.akfak.clients.producer.Callback;
 import com.fanpan26.akfak.common.Cluster;
 import com.fanpan26.akfak.common.Node;
 import com.fanpan26.akfak.common.PartitionInfo;
 import com.fanpan26.akfak.common.TopicPartition;
 import com.fanpan26.akfak.common.record.CompressionType;
+import com.fanpan26.akfak.common.record.MemoryRecords;
+import com.fanpan26.akfak.common.record.Record;
+import com.fanpan26.akfak.common.record.Records;
 import com.fanpan26.akfak.common.utils.CopyOnWriteMap;
 import com.fanpan26.akfak.common.utils.Time;
+import com.fanpan26.akfak.common.utils.Utils;
 
+import java.nio.ByteBuffer;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Deque;
@@ -112,6 +119,77 @@ public final class RecordAccumulator {
         return new ReadyCheckResult(readyNodes, nextReadyCheckDelayMs, unknownLeadersExist);
     }
 
+    public RecordAppendResult append(TopicPartition tp,
+                                     long timestamp,
+                                     byte[] key,
+                                     byte[] value,
+                                     Callback callback,
+                                     long maxTimeBlock) throws InterruptedException {
+        appendsInProgress.incrementAndGet();
+        try {
+            Deque<RecordBatch> dq = getOrCreateDeque(tp);
+            synchronized (dq) {
+                if (closed) {
+                    throw new IllegalStateException("Cannot send after the producer is closed.");
+                }
+                RecordAppendResult result = tryAppend(timestamp, key, value, callback, dq);
+                if (result != null) {
+                    return result;
+                }
+            }
+            int size = Math.max(this.batchSize, Records.LOG_OVERHEAD + Record.recordSize(key, value));
+
+            ByteBuffer buffer = free.allocate(size, maxTimeBlock);
+            synchronized (dq) {
+                if (closed) {
+                    throw new IllegalStateException("Cannot send after the producer is closed.");
+                }
+                RecordAppendResult appendResult = tryAppend(timestamp, key, value, callback, dq);
+                if (appendResult != null) {
+                    free.deallocate(buffer);
+                    return appendResult;
+                }
+                MemoryRecords records = MemoryRecords.emptyRecords(buffer, compression, this.batchSize);
+                RecordBatch batch = new RecordBatch(tp, records, time.milliseconds());
+                FutureRecordMetadata future = Utils.notNull(batch.tryAppend(timestamp, key, value, callback, time.milliseconds()));
+                dq.addLast(batch);
+                incomplete.add(batch);
+                return new RecordAppendResult(future, dq.size() > 1 || batch.records.isFull(), true);
+            }
+        } finally {
+            appendsInProgress.decrementAndGet();
+        }
+    }
+
+    private RecordAppendResult tryAppend(long timestamp,byte[] key,byte[] value,Callback callback,Deque<RecordBatch> deque) {
+        RecordBatch last = deque.peekLast();
+        if (last != null) {
+            FutureRecordMetadata future = last.tryAppend(timestamp, key, value, callback, time.milliseconds());
+            if (future == null) {
+                last.records.close();
+            } else {
+                //从之前的batch中append，不用新创建一个
+                return new RecordAppendResult(future, deque.size() > 1 || last.records.isFull(), false);
+            }
+        }
+        return null;
+    }
+
+    private Deque<RecordBatch> getOrCreateDeque(TopicPartition tp) {
+        Deque<RecordBatch> d = this.batches.get(tp);
+        if (d != null) {
+            return d;
+        }
+        d = new ArrayDeque<>();
+        //考虑并发
+        Deque<RecordBatch> previous = this.batches.putIfAbsent(tp, d);
+        if (previous == null) {
+            return d;
+        }
+        return previous;
+    }
+
+
     boolean flushInProgress() {
         return flushesInProgress.get() > 0;
     }
@@ -177,6 +255,19 @@ public final class RecordAccumulator {
     //TODO abortExpiredBatches
     public List<RecordBatch> abortExpiredBatches(int requestTimeout, long now){
         return Collections.emptyList();
+    }
+
+
+    public final static class RecordAppendResult {
+        public final FutureRecordMetadata future;
+        public final boolean batchIsFull;
+        public final boolean newBatchCreated;
+
+        public RecordAppendResult(FutureRecordMetadata future, boolean batchIsFull, boolean newBatchCreated) {
+            this.future = future;
+            this.batchIsFull = batchIsFull;
+            this.newBatchCreated = newBatchCreated;
+        }
     }
 
     public final static class ReadyCheckResult {

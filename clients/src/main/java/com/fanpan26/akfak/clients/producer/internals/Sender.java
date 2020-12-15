@@ -94,7 +94,6 @@ public class Sender implements Runnable {
     private void run(long now) {
         //获取集群信息，刚开始为空
         Cluster cluster = metadata.fetch();
-
         //检查服务节点信息，看看是否符合发送条件
         RecordAccumulator.ReadyCheckResult result = this.accumulator.ready(cluster, now);
 
@@ -121,6 +120,9 @@ public class Sender implements Runnable {
                 this.maxRequestSize,
                 now);
 
+        if (batches.size() >0) {
+            logger.info("batch-size:{}", batches.get(0).size());
+        }
         //如果要保证顺序发送
         if (guaranteeMessageOrder){
             for (List<RecordBatch> batchList : batches.values()) {
@@ -197,5 +199,9 @@ public class Sender implements Runnable {
 
     private void handleProduceResponse(ClientResponse response, Map<TopicPartition, RecordBatch> batches, long now){
 
+    }
+
+    public void wakeup() {
+        this.client.wakeup();
     }
 }

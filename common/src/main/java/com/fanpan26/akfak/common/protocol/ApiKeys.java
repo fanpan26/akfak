@@ -5,7 +5,8 @@ package com.fanpan26.akfak.common.protocol;
  */
 public enum  ApiKeys {
 
-    PRODUCE(0, "Produce");
+    PRODUCE(0, "Produce"),
+    METADATA(3, "Metadata");
 
     public final short id;
 

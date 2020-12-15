@@ -1,5 +1,8 @@
 package com.fanpan26.akfak.clients;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.HashMap;
 import java.util.Map;
 
@@ -7,6 +10,8 @@ import java.util.Map;
  * @author fanyuepan
  */
 final class ClusterConnectionStates {
+
+    private static final Logger logger = LoggerFactory.getLogger(ClusterConnectionStates.class);
 
     private long reconnectBackoffMs;
     private final Map<String, NodeConnectionState> nodeState;
@@ -32,6 +37,7 @@ final class ClusterConnectionStates {
      * 加入正在连接状态
      */
     public void connecting(String id, long now) {
+        logger.info("[{}]正在连接......",id);
         nodeState.put(id, new NodeConnectionState(ConnectionState.CONNECTING, now));
     }
 
@@ -89,5 +95,21 @@ final class ClusterConnectionStates {
             //如果是其他状态，那么就等着吧，没必要进行重试连接
             return Long.MAX_VALUE;
         }
+    }
+
+    public boolean isBlackOut(String id, long now) {
+        NodeConnectionState state = nodeState.get(id);
+        //还没有连接服务器，所以还可以尝试连接，
+        if (state == null) {
+            return false;
+        }
+        //服务状态为断开连接，并且还没有到重试连接时间
+        return state.state == ConnectionState.DISCONNECTED && now - state.lastConnectAttemptMs < this.reconnectBackoffMs;
+    }
+
+    public void connected(String id) {
+        NodeConnectionState nodeState = nodeState(id);
+        nodeState.state = ConnectionState.CONNECTED;
+        logger.info("[{}]连接成功......",id);
     }
 }

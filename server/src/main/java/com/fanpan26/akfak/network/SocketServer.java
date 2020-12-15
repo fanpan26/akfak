@@ -34,10 +34,16 @@ public class SocketServer {
 
     private int maxConnectionPerIp;
 
+    private RequestChannel requestChannel;
+
     private Selectable selector;
 
     public SocketServer(KafkaConfig config) {
         this.config = config;
+    }
+
+    public RequestChannel getRequestChannel() {
+        return requestChannel;
     }
 
     public void start() {
@@ -48,6 +54,7 @@ public class SocketServer {
         maxQueuedRequests = config.getQueuedMaxRequests();
         totalProcessorThreads = numProcessorThreads * listeners.size();
         maxConnectionPerIp = config.getMaxConnectionPerIp();
+        requestChannel = new RequestChannel(numProcessorThreads, maxQueuedRequests);
 
         int sendBufferSize = config.getSendBufferSize();
         int receiveBufferSize = config.getReceiveBufferSize();
@@ -60,7 +67,7 @@ public class SocketServer {
             //初始化processor
             for (int i = processorBeginIndex; i < processorEndIndex; i++) {
                 logger.info("Initializing {} processor", i);
-                processors.add(i, newProcessor(i, protocolType));
+                processors.add(i, newProcessor(i, requestChannel, protocolType));
             }
             //初始化 acceptor
             Acceptor acceptor = new Acceptor(entry.getValue(),
@@ -78,18 +85,10 @@ public class SocketServer {
         }
     }
 
-    private Processor newProcessor(int id,SecurityProtocol protocol){
-        /**
-         * int id,
-         int maxRequestSize,
-         RequestChannel requestChannel,
-         long connectionsMaxIdleMs,
-         SecurityProtocol protocol,
-         Map<String,?> channelConfigs
-         * */
+    private Processor newProcessor(int id,RequestChannel requestChannel,SecurityProtocol protocol){
         return new Processor(id,
                 config.getSocketRequestMaxSize(),
-                null,
+                requestChannel,
                 config.getConnectionsMaxIdleMs(),
                 protocol,config.values());
     }

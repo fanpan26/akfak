@@ -44,6 +44,11 @@ public interface Selectable {
     List<Send> completedSends();
 
     /**
+     * 已经接收完成的包
+     * */
+    List<NetworkReceive> completedReceives();
+
+    /**
      * 已连接的列表
      * */
     List<String> connected();

@@ -26,9 +26,16 @@ public class PlaintextChannelBuilder implements ChannelBuilder {
 
     @Override
     public KafkaChannel buildChannel(String id, SelectionKey key, int maxReceiveSize) throws KafkaException {
-        KafkaChannel channel;
-
-        return null;
+        KafkaChannel channel = null;
+        try {
+            PlaintextTransportLayer transportLayer = new PlaintextTransportLayer(key);
+            Authenticator authenticator = new DefaultAuthenticator();
+            authenticator.configure(transportLayer, this.principalBuilder, this.configs);
+            channel = new KafkaChannel(id, transportLayer, authenticator, maxReceiveSize);
+        } catch (Exception e) {
+            throw new KafkaException(e);
+        }
+        return channel;
     }
 
     @Override

@@ -3,6 +3,7 @@ package com.fanpan26.akfak.clients.producer.internals;
 import com.fanpan26.akfak.clients.producer.Callback;
 import com.fanpan26.akfak.common.TopicPartition;
 import com.fanpan26.akfak.common.record.MemoryRecords;
+import com.fanpan26.akfak.common.record.Record;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -18,7 +19,7 @@ public final class RecordBatch {
 
     /**
      * 消息记录数
-     * */
+     */
     public int recordCount = 0;
     public int maxRecordSize = 0;
     public volatile int attempts = 0;
@@ -53,4 +54,24 @@ public final class RecordBatch {
             this.future = future;
         }
     }
+
+    public FutureRecordMetadata tryAppend(long timestamp, byte[] key, byte[] value, Callback callback, long now) {
+        if (!this.records.hasRoomFor(key, value)) {
+            return null;
+        }
+        long checksum = this.records.append(offsetCounter++, timestamp, key, value);
+        this.maxRecordSize = Math.max(this.maxRecordSize, Record.recordSize(key, value));
+        this.lastAppendTime = now;
+        FutureRecordMetadata future = new FutureRecordMetadata(this.produceFuture,
+                this.recordCount,
+                timestamp, checksum,
+                key == null ? -1 : key.length,
+                value == null ? -1 : value.length);
+        if (callback != null) {
+            thunks.add(new Thunk(callback, future));
+        }
+        this.recordCount++;
+        return future;
+    }
+
 }

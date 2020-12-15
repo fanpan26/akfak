@@ -1,5 +1,7 @@
 package com.fanpan26.akfak.network;
 
+import com.fanpan26.akfak.common.network.KafkaChannel;
+import com.fanpan26.akfak.common.network.Selector;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -48,6 +50,13 @@ public abstract class AbstractServerThread implements Runnable {
 
     protected boolean isRunning() {
         return alive.get();
+    }
+
+    void close(Selector selector, String source) {
+        KafkaChannel channel = selector.channel(source);
+        if (channel != null) {
+            selector.close(source);
+        }
     }
 
     void close(SocketChannel channel) {

@@ -1,5 +1,6 @@
 package com.fanpan26.akfak.clients;
 
+import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.Map;
@@ -16,6 +17,18 @@ final class InFlightRequests {
         this.maxInFlightRequestsPerConnection = maxInFlightRequestsPerConnection;
     }
 
+    public int inFlightRequestCount(String node) {
+        Deque<ClientRequest> queue = requests.get(node);
+        return queue == null ? 0 : queue.size();
+    }
+
+    public int inFlightRequestCount() {
+        int total = 0;
+        for (Deque<ClientRequest> deque : this.requests.values()) {
+            total += deque.size();
+        }
+        return total;
+    }
 
     public boolean canSendMore(String node){
         Deque<ClientRequest> queue = requests.get(node);
@@ -23,5 +36,34 @@ final class InFlightRequests {
         return queue == null ||
                 queue.isEmpty() ||
                 (queue.peekFirst().request().completed() && queue.size() < this.maxInFlightRequestsPerConnection);
+    }
+
+    public void add(ClientRequest request) {
+        Deque<ClientRequest> reqs = this.requests.get(request.request().destination());
+        if (reqs == null) {
+            reqs = new ArrayDeque<>();
+            this.requests.put(request.request().destination(), reqs);
+        }
+        reqs.add(request);
+    }
+
+    public ClientRequest lastSent(String node) {
+        return requestQueue(node).peekFirst();
+    }
+
+    private Deque<ClientRequest> requestQueue(String node) {
+        Deque<ClientRequest> reqs = requests.get(node);
+        if (reqs == null || reqs.isEmpty()) {
+            throw new IllegalStateException("Response from server for which there are no in-flight requests.");
+        }
+        return reqs;
+    }
+
+    public ClientRequest completeLastSent(String node) {
+        return requestQueue(node).pollFirst();
+    }
+
+    public ClientRequest completeNext(String node) {
+        return requestQueue(node).pollLast();
     }
 }
