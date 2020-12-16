@@ -69,6 +69,7 @@ public class Acceptor extends AbstractServerThread {
     @Override
     public void run() {
         try {
+            //注册 OP_ACCEPT 事件
             serverSocketChannel.register(nioSelector, SelectionKey.OP_ACCEPT);
         } catch (ClosedChannelException e) {
             logger.error("Channel closed");
@@ -79,15 +80,19 @@ public class Acceptor extends AbstractServerThread {
             int currentProcessorIndex = 0;
             while (isRunning()) {
                 try {
-                    //阻塞500ms
+                    //调用底层select
                     int ready = nioSelector.select(500);
                     if (ready > 0) {
+                        //到这里说明有客户端尝试连接服务器了
                         Set<SelectionKey> keys = nioSelector.selectedKeys();
                         Iterator<SelectionKey> iterator = keys.iterator();
                         while (iterator.hasNext() && isRunning()) {
                             try {
+                                //拿到SelectionKey
                                 SelectionKey key = iterator.next();
                                 iterator.remove();
+
+                                //这里的Key只能是Acceptable
                                 if (key.isAcceptable()) {
                                     accept(key, processors.get(currentProcessorIndex));
                                 } else {
@@ -123,7 +128,6 @@ public class Acceptor extends AbstractServerThread {
     private void accept(SelectionKey key,Processor processor) throws IOException {
         ServerSocketChannel serverSocketChannel = (ServerSocketChannel) key.channel();
         SocketChannel socketChannel = serverSocketChannel.accept();
-        //connectionQuotas.inc(socketChannel.socket().getInetAddress)
         socketChannel.configureBlocking(false);
         socketChannel.socket().setTcpNoDelay(true);
         socketChannel.socket().setKeepAlive(true);

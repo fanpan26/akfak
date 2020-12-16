@@ -62,7 +62,9 @@ public class KafkaRequestHandler implements Runnable {
             //初始化处理程序，启动线程
             for (int i = 0; i < numThreads; i++) {
                 runnables[i] = new KafkaRequestHandler(i, brokerId, numThreads, requestChannel, apis);
-                threads[i] = Utils.daemonThread("kafka-request-handler-" + i, runnables[i]);
+                final String threadName = "kafka-request-handler-" + i;
+                threads[i] = Utils.daemonThread(threadName, runnables[i]);
+                logger.info("Start handler thread:{}",threadName);
                 threads[i].start();
             }
         }

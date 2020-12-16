@@ -84,7 +84,7 @@ public class Processor extends AbstractServerThread {
                 //处理断开的连接
                 processDisconnected();
             } catch (Exception e) {
-
+                logger.error("");
             }
         }
 
